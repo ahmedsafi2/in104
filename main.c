@@ -704,10 +704,8 @@ void handleClick(GameState *game, int x, int y) {
                 } 
                 // Sinon, tenter de déplacer le jeton
                 else {
-                    // Vérifier si le déplacement est autorisé
-                    // 1. La pile de destination doit avoir de la place
-                    // 2. Le jeton de la pile source doit pouvoir aller dans la pile de destination
-                    //    (soit destination vide, soit même couleur au sommet)
+                    // MODIFICATION: Vérifier uniquement si la pile de destination a de la place
+                    // (suppression de la contrainte de couleur)
                     
                     Pile *src = &game->piles[game->selected];
                     Pile *dest = &game->piles[i];
@@ -715,32 +713,31 @@ void handleClick(GameState *game, int x, int y) {
                     if (dest->count < game->maxTokens) {
                         int sourceTokenColor = src->colors[src->count - 1];
                         
-                        if (dest->count == 0 || dest->colors[dest->count - 1] == sourceTokenColor) {
-                            // Calculer les positions pour l'animation
-                            int tokenHeight = 50;
-                            int tokenSpacing = 10;
-                            int srcTokenX = startX + game->selected * (pileWidth + pileSpacing) + 5;
-                            int srcTokenY = startY + pileHeight - src->count * (tokenHeight + tokenSpacing);
-                            int destTokenX = startX + i * (pileWidth + pileSpacing) + 5;
-                            int destTokenY = startY + pileHeight - (dest->count + 1) * (tokenHeight + tokenSpacing);
-                            
-                            // Démarrer l'animation
-                            startTokenAnimation(srcTokenX, srcTokenY, destTokenX, destTokenY, sourceTokenColor);
-                            
-                            // Transférer le jeton
-                            dest->colors[dest->count++] = sourceTokenColor;
-                            src->count--;
-                            
-                            // Incrémenter le compteur de mouvements
-                            game->moveCount++;
-                            
-                            // Désélectionner
-                            game->selected = -1;
-                            
-                            // Vérifier si le joueur a gagné
-                            if (checkWin(game)) {
-                                game->status = GAME_WON;
-                            }
+                        // MODIFICATION: Autoriser le déplacement sans vérifier la couleur
+                        // Calculer les positions pour l'animation
+                        int tokenHeight = 50;
+                        int tokenSpacing = 10;
+                        int srcTokenX = startX + game->selected * (pileWidth + pileSpacing) + 5;
+                        int srcTokenY = startY + pileHeight - src->count * (tokenHeight + tokenSpacing);
+                        int destTokenX = startX + i * (pileWidth + pileSpacing) + 5;
+                        int destTokenY = startY + pileHeight - (dest->count + 1) * (tokenHeight + tokenSpacing);
+                        
+                        // Démarrer l'animation
+                        startTokenAnimation(srcTokenX, srcTokenY, destTokenX, destTokenY, sourceTokenColor);
+                        
+                        // Transférer le jeton
+                        dest->colors[dest->count++] = sourceTokenColor;
+                        src->count--;
+                        
+                        // Incrémenter le compteur de mouvements
+                        game->moveCount++;
+                        
+                        // Désélectionner
+                        game->selected = -1;
+                        
+                        // Vérifier si le joueur a gagné
+                        if (checkWin(game)) {
+                            game->status = GAME_WON;
                         }
                     }
                 }
@@ -749,7 +746,6 @@ void handleClick(GameState *game, int x, int y) {
         }
     }
 }
-
 int main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
@@ -853,7 +849,6 @@ int main(int argc, char* argv[]) {
     
     return 0;
 }
-
 
 
 
