@@ -1,41 +1,47 @@
-# === Compilation ===
+# Makefile for Nuts Puzzle game
+
+# Compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -g -O2 `sdl2-config --cflags`
-LDFLAGS = `sdl2-config --libs` -lSDL2_ttf -lm
+CFLAGS = -Wall -Wextra -O2 
+LDFLAGS = -lSDL2 -lSDL2_ttf -lm
 
-# === Fichiers source ===
+# Target executable name
+TARGET = nuts_puzzle
+
+# Source files
 SRC = main.c
+
+# Object files
 OBJ = $(SRC:.c=.o)
-EXEC = nuts
 
-# === Dossiers des assets ===
-FONT_SRC = /home/yassine/Downloads/Untitled\ Folder\ 2/assets/fonts
-FONT_DST = assets/fonts
+# Default target
+all: $(TARGET)
 
-# === Règle principale ===
-all: $(EXEC) copy-fonts
+# Link the target executable
+$(TARGET): $(OBJ)
+	$(CC) $(OBJ) -o $(TARGET) $(LDFLAGS)
 
-# === Compilation de l'exécutable ===
-$(EXEC): $(OBJ)
-	$(CC) -o $@ $^ $(LDFLAGS)
-
-# === Compilation des fichiers objets ===
+# Compile source files
 %.o: %.c
-	$(CC) -o $@ -c $< $(CFLAGS)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-# === Copie des polices TTF (compatible dash) ===
-copy-fonts:
-	mkdir -p $(FONT_DST)
-	for font in $(shell find $(FONT_SRC) -name '*.ttf'); do \
-		dest="$(FONT_DST)/$$(basename "$$font")"; \
-		if [ "$$font" != "$$dest" ]; then \
-			cp -u "$$font" "$$dest"; \
-		fi \
-	done || echo "Warning: Could not copy fonts"
-
-# === Nettoyage ===
+# Clean generated files
 clean:
-	rm -f $(OBJ) $(EXEC)
+	rm -f $(OBJ) $(TARGET)
 
-.PHONY: all clean copy-fonts
+# Run the game
+run: $(TARGET)
+	./$(TARGET)
 
+# Help target
+help:
+	@echo "Available targets:"
+	@echo "  all       - Build the game (default)"
+	@echo "  clean     - Remove object files and executable"
+	@echo "  run       - Build and run the game"
+	@echo "  help      - Display this help message"
+
+# Dependencies
+main.o: main.c
+
+.PHONY: all clean run help
