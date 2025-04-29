@@ -11,6 +11,8 @@
 #define MAX_PILES 12
 #define MAX_TOKENS 6
 
+
+
 typedef enum {
     LEVEL_NONE,
     LEVEL_EASY,
@@ -38,6 +40,7 @@ typedef struct {
     DifficultyLevel currentLevel;
     int moveCount;
     Uint32 startTime;
+    Uint32 endTime;  // Ajouter cette ligne pour stocker le temps de fin
 } GameState;
 
 // Palette de couleurs attrayante pour les jetons
@@ -79,6 +82,14 @@ typedef struct {
 } TokenAnimation;
 
 TokenAnimation currentAnimation = {false};
+
+void initGame(GameState *game, DifficultyLevel level);
+
+
+void actionQuit(void *data) {
+    (void)data; // Pour éviter l'avertissement de variable non utilisée
+    exit(0);
+}
 
 void renderText(SDL_Renderer *renderer, TTF_Font *font, const char *text, int x, int y, SDL_Color color) {
     SDL_Surface *surface = TTF_RenderText_Blended(font, text, color);
@@ -239,18 +250,19 @@ void actionRestart(void *data) {
     GameState *game = (GameState *)data;
     game->status = GAME_PLAYING;
     // Réinitialisation sera gérée dans la boucle principale
+    initGame(game, game->currentLevel);  // Réinitialiser le jeu avec le même niveau
 }
 
 void actionBackToMenu(void *data) {
     GameState *game = (GameState *)data;
     game->status = GAME_PLAYING;
-    game->currentLevel = LEVEL_NONE;
+    game->currentLevel = LEVEL_NONE;  // Retour au menu principal
 }
 
 DifficultyLevel showLevelMenu(SDL_Renderer *renderer, TTF_Font *font, TTF_Font *titleFont) {
     SDL_Event event;
     DifficultyLevel selected = LEVEL_NONE;
-    Button buttons[3] = {
+    Button buttons[4] = {
         {
             {WINDOW_WIDTH / 2 - 100, 250, 200, 60},
             "Easy",
@@ -271,6 +283,13 @@ DifficultyLevel showLevelMenu(SDL_Renderer *renderer, TTF_Font *font, TTF_Font *
             false,
             actionPlayHard,
             &selected
+        },
+        {
+            {WINDOW_WIDTH / 2 - 100, 490, 200, 60},
+            "Quit",
+            false,
+            actionQuit,
+            NULL
         }
     };
 
@@ -298,14 +317,14 @@ DifficultyLevel showLevelMenu(SDL_Renderer *renderer, TTF_Font *font, TTF_Font *
                 int x = event.motion.x;
                 int y = event.motion.y;
                 
-                for (int i = 0; i < 3; i++) {
+                for (int i = 0; i < 4; i++) {
                     buttons[i].hover = isPointInRect(x, y, &buttons[i].rect);
                 }
             } else if (event.type == SDL_MOUSEBUTTONDOWN) {
                 int x = event.button.x;
                 int y = event.button.y;
                 
-                for (int i = 0; i < 3; i++) {
+                for (int i = 0; i < 4; i++) {
                     if (isPointInRect(x, y, &buttons[i].rect)) {
                         buttons[i].action(buttons[i].data);
                     }
@@ -321,17 +340,17 @@ DifficultyLevel showLevelMenu(SDL_Renderer *renderer, TTF_Font *font, TTF_Font *
         renderTextCentered(renderer, font, "Select Difficulty", WINDOW_WIDTH / 2, 160, TEXT_COLOR);
         
         // Afficher les descriptions de niveau sous chaque bouton
-        renderTextCentered(renderer, font, "(4 piles, 3 couleurs, max 3 jetons)", 
+        /*renderTextCentered(renderer, font, "(4 piles, 3 couleurs, max 3 jetons)", 
                           WINDOW_WIDTH / 2, buttons[0].rect.y + buttons[0].rect.h + 20, TEXT_COLOR);
         
         renderTextCentered(renderer, font, "(6 piles, 4 couleurs, max 4 jetons)", 
                           WINDOW_WIDTH / 2, buttons[1].rect.y + buttons[1].rect.h + 20, TEXT_COLOR);
         
         renderTextCentered(renderer, font, "(8 piles, 5 couleurs, max 5 jetons)", 
-                          WINDOW_WIDTH / 2, buttons[2].rect.y + buttons[2].rect.h + 20, TEXT_COLOR);
+                          WINDOW_WIDTH / 2, buttons[2].rect.y + buttons[2].rect.h + 20, TEXT_COLOR);*/
         
         // Dessiner les boutons
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 4; i++) {
             renderButton(renderer, font, &buttons[i]);
         }
 
@@ -343,12 +362,14 @@ DifficultyLevel showLevelMenu(SDL_Renderer *renderer, TTF_Font *font, TTF_Font *
     return selected;
 }
 
+
 void initGame(GameState *game, DifficultyLevel level) {
     game->selected = -1;
     game->status = GAME_PLAYING;
     game->currentLevel = level;
     game->moveCount = 0;
     game->startTime = SDL_GetTicks();
+    game->endTime = 0;  // Initialiser le temps de fin à 0
     currentAnimation.active = false;
 
     // Réinitialiser toutes les piles
@@ -421,7 +442,6 @@ bool checkWin(GameState *game) {
     return true;
 }
 
-// Dessiner un jeton avec une apparence 3D
 void drawToken(SDL_Renderer *renderer, int x, int y, int width, int height, SDL_Color color) {
     // Jeton principal
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
@@ -494,30 +514,27 @@ void renderWinScreen(SDL_Renderer *renderer, TTF_Font *font, TTF_Font *largeFont
     SDL_Rect overlay = {0, 0, WINDOW_WIDTH, WINDOW_HEIGHT};
     SDL_RenderFillRect(renderer, &overlay);
     
-    // Temps écoulé
-    Uint32 elapsedTime = game->status == GAME_WON ? 
-                         SDL_GetTicks() - game->startTime : SDL_GetTicks();
+    // Temps écoulé (utiliser le temps écoulé jusqu'à la victoire)
+    Uint32 elapsedTime = game->endTime - game->startTime;
     int minutes = (elapsedTime / 1000) / 60;
     int seconds = (elapsedTime / 1000) % 60;
     
-    // Effet de scintillement pour le texte de victoire
-    SDL_Color winColor = {
-        241 + sin(SDL_GetTicks() * 0.003) * 15,
-        196 + sin(SDL_GetTicks() * 0.005) * 15,
-        15 + sin(SDL_GetTicks() * 0.004) * 15,
-        255
-    };
+    // Message de victoire
+    renderTextCentered(renderer, largeFont, "YOU WIN!", WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 80, 
+                      (SDL_Color){255, 215, 0, 255});
     
-    // Afficher message de victoire
-    renderTextCentered(renderer, largeFont, "YOU WIN!", WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 80, winColor);
+    // Message de félicitation simple (éviter les effets complexes)
+    renderTextCentered(renderer, font, "Congratulations!", 
+                      WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 - 30, TEXT_COLOR);
     
+    // Statistiques de jeu
     char statsText[100];
     sprintf(statsText, "Moves: %d   Time: %02d:%02d", game->moveCount, minutes, seconds);
-    renderTextCentered(renderer, font, statsText, WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2, TEXT_COLOR);
+    renderTextCentered(renderer, font, statsText, WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2 + 10, TEXT_COLOR);
     
-    // Boutons
+    // Définir les boutons de manière simple
     Button restartButton = {
-        {WINDOW_WIDTH / 2 - 210, WINDOW_HEIGHT / 2 + 60, 180, 60},
+        {WINDOW_WIDTH / 2 - 270, WINDOW_HEIGHT / 2 + 100, 160, 60},
         "Play Again",
         false,
         actionRestart,
@@ -525,11 +542,19 @@ void renderWinScreen(SDL_Renderer *renderer, TTF_Font *font, TTF_Font *largeFont
     };
     
     Button menuButton = {
-        {WINDOW_WIDTH / 2 + 30, WINDOW_HEIGHT / 2 + 60, 180, 60},
+        {WINDOW_WIDTH / 2 - 80, WINDOW_HEIGHT / 2 + 100, 160, 60},
         "Main Menu",
         false,
         actionBackToMenu,
         game
+    };
+    
+    Button quitButton = {
+        {WINDOW_WIDTH / 2 + 110, WINDOW_HEIGHT / 2 + 100, 160, 60},
+        "Quit",
+        false,
+        actionQuit,
+        NULL
     };
     
     // Vérifier si la souris survole les boutons
@@ -537,9 +562,12 @@ void renderWinScreen(SDL_Renderer *renderer, TTF_Font *font, TTF_Font *largeFont
     SDL_GetMouseState(&mouseX, &mouseY);
     restartButton.hover = isPointInRect(mouseX, mouseY, &restartButton.rect);
     menuButton.hover = isPointInRect(mouseX, mouseY, &menuButton.rect);
+    quitButton.hover = isPointInRect(mouseX, mouseY, &quitButton.rect);
     
+    // Rendre les boutons de façon simplifiée
     renderButton(renderer, font, &restartButton);
     renderButton(renderer, font, &menuButton);
+    renderButton(renderer, font, &quitButton);
 }
 
 void renderGame(SDL_Renderer *renderer, GameState *game, TTF_Font *font, TTF_Font *largeFont) {
@@ -575,7 +603,14 @@ void renderGame(SDL_Renderer *renderer, GameState *game, TTF_Font *font, TTF_Fon
     renderText(renderer, font, moveText, WINDOW_WIDTH - 150, 20, TEXT_COLOR);
     
     // Afficher le chronomètre
-    Uint32 elapsedTime = SDL_GetTicks() - game->startTime;
+    Uint32 elapsedTime;
+    if (game->status == GAME_WON) {
+        // Utiliser le temps de fin enregistré
+        elapsedTime = game->endTime - game->startTime;
+    } else {
+        // Pour un jeu en cours, continuer à mettre à jour
+        elapsedTime = SDL_GetTicks() - game->startTime;
+    }
     int minutes = (elapsedTime / 1000) / 60;
     int seconds = (elapsedTime / 1000) % 60;
     char timeText[20];
@@ -617,9 +652,9 @@ void renderGame(SDL_Renderer *renderer, GameState *game, TTF_Font *font, TTF_Fon
             // Position du jeton dans la pile
             int tokenY = rect.y + pileHeight - (j + 1) * (tokenHeight + tokenSpacing);
             int tokenX = rect.x + 5;
-            
-            drawToken(renderer, tokenX, tokenY, pileWidth - 10, tokenHeight, 
-                    COLORS[game->piles[i].colors[j]]);
+            if (!currentAnimation.active || !(tokenY==currentAnimation.destY && tokenX==currentAnimation.destX && game->piles[i].colors[j]==currentAnimation.colorIndex) ){
+                drawToken(renderer, tokenX, tokenY, pileWidth - 10, tokenHeight, COLORS[game->piles[i].colors[j]]);
+            }
         }
     }
     
@@ -635,6 +670,47 @@ void renderGame(SDL_Renderer *renderer, GameState *game, TTF_Font *font, TTF_Fon
                 COLORS[currentAnimation.colorIndex]);
     }
     
+    // Dessiner les boutons en bas de l'écran (seulement si on n'est pas sur l'écran de victoire)
+    if (game->status != GAME_WON) {
+        // Bouton Restart
+        Button restartButton = {
+            {20, WINDOW_HEIGHT - 70, 150, 50},
+            "Restart",
+            false,
+            actionRestart,
+            game
+        };
+        
+        // Bouton Main Menu
+        Button menuButton = {
+            {190, WINDOW_HEIGHT - 70, 150, 50},
+            "Main Menu",
+            false,
+            actionBackToMenu,
+            game
+        };
+        
+        // Bouton Quit
+        Button quitButton = {
+            {WINDOW_WIDTH - 170, WINDOW_HEIGHT - 70, 150, 50},
+            "Quit",
+            false,
+            actionQuit,
+            NULL
+        };
+        
+        // Vérifier si la souris survole les boutons
+        int mouseX, mouseY;
+        SDL_GetMouseState(&mouseX, &mouseY);
+        restartButton.hover = isPointInRect(mouseX, mouseY, &restartButton.rect);
+        menuButton.hover = isPointInRect(mouseX, mouseY, &menuButton.rect);
+        quitButton.hover = isPointInRect(mouseX, mouseY, &quitButton.rect);
+        
+        renderButton(renderer, font, &restartButton);
+        renderButton(renderer, font, &menuButton);
+        renderButton(renderer, font, &quitButton);
+    }
+    
     // Afficher l'écran de victoire si le jeu est gagné
     if (game->status == GAME_WON) {
         renderWinScreen(renderer, font, largeFont, game);
@@ -643,11 +719,12 @@ void renderGame(SDL_Renderer *renderer, GameState *game, TTF_Font *font, TTF_Fon
     SDL_RenderPresent(renderer);
 }
 
+
 void handleClick(GameState *game, int x, int y) {
     if (game->status == GAME_WON) {
         // Vérifier les clics sur les boutons de l'écran de victoire
         Button restartButton = {
-            {WINDOW_WIDTH / 2 - 210, WINDOW_HEIGHT / 2 + 60, 180, 60},
+            {WINDOW_WIDTH / 2 - 270, WINDOW_HEIGHT / 2 + 100, 160, 60},
             "Play Again",
             false,
             actionRestart,
@@ -655,11 +732,19 @@ void handleClick(GameState *game, int x, int y) {
         };
         
         Button menuButton = {
-            {WINDOW_WIDTH / 2 + 30, WINDOW_HEIGHT / 2 + 60, 180, 60},
+            {WINDOW_WIDTH / 2 - 80, WINDOW_HEIGHT / 2 + 100, 160, 60},
             "Main Menu",
             false,
             actionBackToMenu,
             game
+        };
+        
+        Button quitButton = {
+            {WINDOW_WIDTH / 2 + 110, WINDOW_HEIGHT / 2 + 100, 160, 60},
+            "Quit",
+            false,
+            actionQuit,
+            NULL
         };
         
         if (isPointInRect(x, y, &restartButton.rect)) {
@@ -672,7 +757,57 @@ void handleClick(GameState *game, int x, int y) {
             return;
         }
         
+        if (isPointInRect(x, y, &quitButton.rect)) {
+            quitButton.action(quitButton.data);
+            return;
+        }
+        
         return;
+    }
+    
+    // Vérifier les clics sur les boutons du jeu (si pas en animation)
+    if (!currentAnimation.active) {
+        // Bouton Restart
+        Button restartButton = {
+            {20, WINDOW_HEIGHT - 70, 150, 50},
+            "Restart",
+            false,
+            actionRestart,
+            game
+        };
+        
+        // Bouton Main Menu
+        Button menuButton = {
+            {190, WINDOW_HEIGHT - 70, 150, 50},
+            "Main Menu",
+            false,
+            actionBackToMenu,
+            game
+        };
+        
+        // Bouton Quit
+        Button quitButton = {
+            {WINDOW_WIDTH - 170, WINDOW_HEIGHT - 70, 150, 50},
+            "Quit",
+            false,
+            actionQuit,
+            NULL
+        };
+        
+        if (isPointInRect(x, y, &restartButton.rect)) {
+            restartButton.action(restartButton.data);
+            return;
+        }
+        
+        if (isPointInRect(x, y, &menuButton.rect)) {
+            menuButton.action(menuButton.data);
+            return;
+        }
+        
+        if (isPointInRect(x, y, &quitButton.rect)) {
+            quitButton.action(quitButton.data);
+            return;
+        }
     }
     
     if (currentAnimation.active) return; // Ne pas permettre de cliquer pendant l'animation
@@ -738,6 +873,7 @@ void handleClick(GameState *game, int x, int y) {
                         // Vérifier si le joueur a gagné
                         if (checkWin(game)) {
                             game->status = GAME_WON;
+                            game->endTime = SDL_GetTicks(); // Enregistrer le temps de fin
                         }
                     }
                 }
@@ -746,6 +882,10 @@ void handleClick(GameState *game, int x, int y) {
         }
     }
 }
+
+
+
+
 int main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
@@ -786,10 +926,8 @@ int main(int argc, char* argv[]) {
     }
     
     // Chargement des polices
-    TTF_Font* font = TTF_OpenFont("assets/fonts/Roboto-Bold.ttf", 24);
-
-    //TTF_Font *font = TTF_OpenFont("assets/fonts/Roboto-Regular.ttf", 20);
-    TTF_Font *largeFont = TTF_OpenFont("assets/fonts/Roboto-Bold.ttf", 36);
+    TTF_Font* font = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24);
+    TTF_Font *largeFont = TTF_OpenFont("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 36);
     if (!font || !largeFont) {
         printf("Erreur de chargement des polices: %s\n", TTF_GetError());
         SDL_DestroyRenderer(renderer);
@@ -831,10 +969,16 @@ int main(int argc, char* argv[]) {
         // Mettre à jour l'animation
         updateAnimation();
         
-        // Réinitialiser le jeu si demandé
-        if (game.status == GAME_PLAYING && game.currentLevel != LEVEL_NONE) {
-            renderGame(renderer, &game, font, largeFont);
+        // Vérifier si le joueur a gagné (après la fin de l'animation)
+        if (!currentAnimation.active && game.status == GAME_PLAYING && game.currentLevel != LEVEL_NONE) {
+            if (checkWin(&game)) {
+                game.status = GAME_WON;
+                game.endTime = SDL_GetTicks();
+            }
         }
+        
+        // Rendre le jeu
+        renderGame(renderer, &game, font, largeFont);
         
         SDL_Delay(16); // ~60 FPS
     }
@@ -849,11 +993,3 @@ int main(int argc, char* argv[]) {
     
     return 0;
 }
-
-
-
-
-
-
-
-
